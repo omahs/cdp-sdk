@@ -18,6 +18,7 @@ from hexbytes import HexBytes
 from pydantic import BaseModel, ConfigDict, Field
 from web3 import Web3
 
+from cdp.api_clients import ApiClients
 from cdp.openapi_client.api.evm_accounts_api import EVMAccountsApi
 from cdp.openapi_client.models.evm_account import EvmAccount as EvmServerAccountModel
 from cdp.openapi_client.models.sign_evm_hash_request import SignEvmHashRequest
@@ -27,24 +28,31 @@ from cdp.openapi_client.models.sign_evm_transaction_request import (
 )
 
 
-class EvmServerAccount(BaseAccount):
+class EvmServerAccount(BaseAccount, BaseModel):
     """A class representing an EVM server account."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def __init__(
         self,
         evm_server_account_model: EvmServerAccountModel,
         evm_accounts_api: EVMAccountsApi,
+        api_client: ApiClients,
     ) -> None:
         """Initialize the EvmServerAccount class.
 
         Args:
             evm_server_account_model (EvmServerAccountModel): The EVM server account model.
             evm_accounts_api (EVMAccountsApi): The EVM accounts API.
+            api_client (ApiClients): The API client.
 
         """
+        super().__init__()
+
         self.__address = evm_server_account_model.address
         self.__name = evm_server_account_model.name
         self.__evm_accounts_api = evm_accounts_api
+        self.__api_client = api_client
 
     @property
     def address(self) -> str:
@@ -192,6 +200,33 @@ class EvmServerAccount(BaseAccount):
             r=r,
             s=s,
             v=v,
+        )
+
+    async def transfer(self, transfer_args):
+        """Transfer tokens from this account to another.
+
+        Args:
+            transfer_args: The transfer options
+
+        Returns:
+            The result of the transfer
+
+        """
+        from cdp.actions.evm.transfer import (
+            TransferOptions,
+            account_transfer_strategy,
+            transfer,
+        )
+
+        # Convert to TransferOptions if it's not already
+        if not isinstance(transfer_args, TransferOptions):
+            transfer_args = TransferOptions(**transfer_args)
+
+        return await transfer(
+            api_clients=self.__api_client,
+            from_account=self,
+            transfer_args=transfer_args,
+            transfer_strategy=account_transfer_strategy,
         )
 
     def __str__(self) -> str:

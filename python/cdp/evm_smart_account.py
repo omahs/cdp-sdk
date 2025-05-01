@@ -1,17 +1,21 @@
 from eth_account.signers.base import BaseAccount
 from pydantic import BaseModel, ConfigDict, Field
 
+from cdp.api_clients import ApiClients
 from cdp.openapi_client.models.evm_smart_account import EvmSmartAccount as EvmSmartAccountModel
 
 
-class EvmSmartAccount:
+class EvmSmartAccount(BaseModel):
     """A class representing an EVM smart account."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def __init__(
         self,
         address: str,
         owner: BaseAccount,
         name: str | None = None,
+        api_client: ApiClients | None = None,
     ) -> None:
         """Initialize the EvmSmartAccount class.
 
@@ -19,11 +23,13 @@ class EvmSmartAccount:
             address (str): The address of the smart account.
             owner (BaseAccount): The owner of the smart account.
             name (str | None): The name of the smart account.
+            api_client (ApiClients | None): The API client.
 
         """
         self.__address = address
         self.__owners = [owner]
         self.__name = name
+        self.__api_client = api_client
 
     @property
     def address(self) -> str:
@@ -54,6 +60,33 @@ class EvmSmartAccount:
 
         """
         return self.__name
+
+    async def transfer(self, transfer_args):
+        """Transfer tokens from this account to another.
+
+        Args:
+            transfer_args: The transfer options
+
+        Returns:
+            The result of the transfer
+
+        """
+        from cdp.actions.evm.transfer import (
+            TransferOptions,
+            smart_account_transfer_strategy,
+            transfer,
+        )
+
+        # Convert to TransferOptions if it's not already
+        if not isinstance(transfer_args, TransferOptions):
+            transfer_args = TransferOptions(**transfer_args)
+
+        return await transfer(
+            api_client=self.__api_client,
+            from_account=self,
+            transfer_args=transfer_args,
+            transfer_strategy=smart_account_transfer_strategy,
+        )
 
     def __str__(self) -> str:
         """Return a string representation of the EthereumAccount object.
